@@ -1,0 +1,303 @@
+---
+title: "TimeSeries_simulation_Ch1"
+date: "`r format(Sys.Date())`" 
+author: "kyung hee Kim"
+output:
+  html_document:
+    fig_height: 6
+    fig_width: 10
+    highlight: textmate
+    theme: cosmo
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    fig_height: 6
+    fig_width: 10
+    toc: no
+  word_document:
+    fig_height: 6
+    fig_width: 9
+    toc: no
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library(itsmr)
+library(forecast)
+library(carData)
+```
+
+## Ch1 Introduction
+
+Key Finding  
+1) Trend  2) abrupt changes in behavior  3) outlier
+
+### Preliminary 
+```{r}
+huron<-read.table("https://raw.githubusercontent.com/hikhloee/TS_code/main/huron.txt",header=T)
+death<-read.table("https://raw.githubusercontent.com/hikhloee/TS_code/main/deaths.txt",header=T)
+```
+
+figure1.1
+```{r}
+plot.ts(wineind)
+```
+
+```{r}
+plot.ts(huron)
+plot.ts(death)
+US<-as.ts(USPop$population,frequency=10,start=1790)
+plot.ts(US)
+```
+
+### Estimations, Elimination Trend and Seasonality
+#### 1. Polynomial regression
+```{r}
+
+n = length(huron[,1]);
+x = seq(from=1, to = n, by=1)
+x2 = x^2
+
+out.lm = lm(as.matrix(huron) ~ 1 + x);
+out.lm2 = lm(as.matrix(huron) ~ 1 + x + x2)
+
+plot.ts(huron,ylab="level in feet");
+title("Lake Huron Water level")
+lines(x,out.lm2$fitted.values,col="red")
+
+test(out.lm2$residuals)
+
+
+```
+
+It's available to estimate, not inference.  
+To do correct inference, we need to consider dependent structure.
+
+
+
+#### 2. Smoothing(local mean==local averaging)
+```{r}
+
+huron.ma = smooth.ma(as.matrix(huron), 30) # width 
+
+plot.ts(huron)
+lines(huron.ma, col="red"); title("Detrend- MA")
+#plot.ts(huron-huron.ma); title("Residuals - MA")
+```
+2-1. Cubic Trend smoothing  
+2-2. Exponential smoothing
+```{r}
+huron.exp<- smooth.exp(as.matrix(huron),.4) # if it gets less, looks like a local mean.
+plot.ts(huron,ylab="level in feet")
+title("Lake Huron Water level")
+lines(x, huron.exp,col="red")
+```
+2-3. multiple smooothing plot
+```{r}
+huron.maq1 = smooth.ma(as.matrix(huron), 5) # width 
+huron.maq2 = smooth.ma(as.matrix(huron), 10) # width 
+huron.maq3 = smooth.ma(as.matrix(huron), 15) # width 
+huron.maq4 = smooth.ma(as.matrix(huron), 20) # width 
+huron.maq5 = smooth.ma(as.matrix(huron), 25) # width 
+huron.maq6 = smooth.ma(as.matrix(huron), 30)
+
+par(mfrow=c(1,1))
+
+plot.ts(huron);title("MA")
+lines(huron.maq1, col="red")
+lines(huron.maq2, col="green")
+lines(huron.maq3, col="violet")
+lines(huron.maq4, col="blue")
+lines(huron.maq5, col="pink")
+lines(huron.maq6, col="yellow")
+```
+2-4. MA filter with Cross Validation(CV) bandwidth selection
+```{r}
+#idk
+```
+  
+#### 3. Differencing (kills k-th order polynomial trend)
+```{r}
+huron<-as.matrix(huron)
+
+diffhuron<-diff(diff(huron))
+plot(diffhuron,type="l")
+```
+### Estimate Seasonality
+1) Harmonic regression  2) Seasonal smoothing  3) Seasonal differencing
+
+1. Harmonic regression   
+Select $\lambda = f_j (2\pi/n), \;f= n/d, \;f_j = j f_1$
+```{r}
+death<-as.matrix(death)
+n<-length(death)
+t = 1:n
+f1=6; f2=2*f1
+costerm1 = cos(f1*2*pi/n*t)
+sinterm1 = sin(f1*2*pi/n*t)
+costerm2 = cos(f2*2*pi/n*t)
+sinterm2 = sin(f2*2*pi/n*t)
+
+out.lm2 = lm(death ~1+costerm1 +sinterm1) #k=1
+out.lm3 = lm(death ~1+costerm1 +sinterm1+costerm2 +sinterm2) #k=2
+plot.ts(death,ylab="level in feet");
+title("US accidental deaths")
+lines(t,out.lm2$fitted.values,col="blue")
+lines(t,out.lm3$fitted.values,col="red")
+```
+If k gets bigger, model fits on data. 
+
+2. Seasonal smoothing
+```{r}
+season.avg = season(death,d=12)
+plot.ts(death,ylab="data",xlab="time")
+title("US accidental deaths")
+lines(1:length(death), season.avg + mean(death), col="red")
+
+resi = death - season.avg - mean(death)
+plot(resi)
+```
+3. Seasonal differencing
+```{r}
+diff12 = diff(death,lag=12)
+par(mfrow=c(1,2))
+plot.ts(death,ylab="data")
+plot.ts(diff12,col="red",ylab="diff12")
+
+```
+### Estimating both trend and seasonality
+
+#### 1. Regression  
+Polynomial regression to estimate trend and harmonic regression for seasonal component. 
+
+```{r}
+
+```
+
+#### 2. Differencing  
+```{r}
+
+```
+
+#### 3. Smoothing and classic decomposition  
+Multistage algorithm to estimate trend, seasonality and noise.   
+
+1. rough estimate of trend using MA filter   
+2. Remove the trend, estimate the seasonality by averaging over the seasons.   
+3. Re-estimate the trend from the deseasonalized series via least squares.   
+4. Take away the estimate of the trend and seasonality.
+
+```{r}
+#Step1 
+#Step2
+#Step3
+#Step4
+
+#decompose function 만들기 
+
+```
+### ACVF of stationary processes
+
+51pg  
+After successfully remove trend and seasonality, only left with \boldtf{stationary errors}.  
+Dependency can be captures by studying ACVF.  
+$X_t = \hat{m_t}+\hat{s_t}+error, X_t - \hat{m_t}-\hat{s_t}= stationary\;TS $.
+  
+    
+#### 1. Random Walk ~ N(0,$\sigma^2$)
+Nonstationary TS.
+```{r}
+
+x<-rnorm(1000,0,1)
+data<-ts(x)
+ts.plot(data);title("IID N(0,1)")
+
+```
+ACF
+```{r}
+
+SACVF<-function(data,lag){
+  n<-length(data)
+  sumdata = 0
+  xbar = mean(data)
+
+    for(i in 1:(n-lag)){
+    sumdata = 1/n*sum((data[i]-xbar)*(data[i+lag]-xbar))+sumdata
+    }
+   
+  return(sumdata)
+
+}
+
+sampleACF<-function(data,lag){
+  sample<-rep(0,lag)
+  sACF<-for(i in 1:lag){
+    sample[i] = SACVF(data,i)/SACVF(data,0)
+  }
+  return(sample)
+}
+
+plot(sampleACF(data,35),type="h");abline(h=0)#;abline(h=c(-0.06,0.06),col="blue")
+
+```
+
+```{r}
+gamma_sample<-rgamma(1000,0.5,1)
+plot(gamma_sample,type="l")
+plot(sampleACF(gamma_sample,35),type="h");abline(h=0);abline(h=c(-0.06,0.06),col="blue")
+
+```
+```{r}
+binom_sample<-rbinom(100,1,0.2)
+plot(binom_sample,type="l")
+plot(sampleACF(binom_sample,35),type="h");abline(h=0);abline(h=c(-0.06,0.06),col="blue")
+
+
+```
+generate random walk
+```{r}
+rw<-function(num){
+  min_value = -Inf
+  max_value = Inf
+  newrw<-0
+  start_value = 0
+  threshold=0.5
+  step_size =1
+  previous_value = start_value
+  for(i in 1:num){
+    if(previous_value<min_value)
+      previous_value = min_value
+    if(previous_value>max_value)
+      previous_value = max_value
+    probability= runif(1,0,1)
+    if(probability > threshold)
+    newrw[i] = previous_value + step_size
+    else
+      newrw[i] = previous_value - step_size
+    previous_value = newrw[i]
+  } 
+  return(newrw)
+}
+
+rw(100)
+plot(rw(500),type="l")
+plot(sampleACF(rw(1000),35),type="h")
+
+```
+[RandomWalk in python](https://towardsdatascience.com/generating-synthetic-time-series-data-with-random-walks-8701bb9a56a8)
+
+
+```{r}
+random_walk<-arima.sim(model=list(order=c(0,1,0)),n=1000)
+plot(random_walk)
+plot(diff(random_walk))
+ts.plot(sampleACF((diff(random_walk)),100),type="h")
+
+```
+
