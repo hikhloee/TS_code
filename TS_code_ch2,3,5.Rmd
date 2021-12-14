@@ -1,0 +1,256 @@
+---
+title: "TimeSeries_simulation_Ch"
+date: "`r format(Sys.Date())`" 
+author: "kyung hee Kim"
+output:
+  html_document:
+    fig_height: 6
+    fig_width: 12
+    highlight: textmate
+    theme: cosmo
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    fig_height: 6
+    fig_width: 10
+    toc: no
+  word_document:
+    fig_height: 6
+    fig_width: 9
+    toc: no
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# CH2-3
+## General data Analysis step
+
+  
+1. tsplot 그리기 
+2. trend/seasonality 제거    
+3. test(정규성/독립성)  
+4. stationary 한지 check (stationary하면 hat(sigma^2)만 estimate, 안하면 cov matrix써서 forecasting)
+
+$X_t = m_t +s_t +Y_t$     
+
+Linear process
+$X_t = \sum \psi_j Z_{t-j}, \sum_j, \{Z_t\}\sim WN(0,\sigma^2), |\psi_j| < inf :$ absolutely summable   
+이때, $Z_t$가 any stationary process면   
+$\gamma_X(h) = \sum\sum \psi_j \psi_k \gamma_Y(h+k-j)$     
+$\gamma_X(h) = \sum_j \psi_j \psi_{j+h} \sigma^2$, when $\{Y_t\} \sim WN(0,\sigma^2)$
+
+    
+Linear process with backshift operator<br />
+$\sum_j \psi_j Z_{t-j} = (\sum_j \psi_j B^j)Z_t := \psi(B) Z_t$,   
+$\psi(B) = \sum_j \psi_j B^j$: Characteristic Polynomial 
+    
+MA(q) linear process    
+$X_t = (1+\theta_1 B + \cdots + \theta_q B^q)Z_t := \theta(B) Z_t$ <br />
+
+AR(p) linear process    
+$X_t = (1 + \phi^1 + \cdots + \phi^p)Z_{t-j} := \sum^{\inf}_{j=0} \phi^j Z_{t-j} := \Phi(B) Z_t$
+
+<br /><br />
+MA(q): finite sum , AR(p): infinite sum
+<br />
+|$\phi$| $\ge$ 1 이면 non-stationary
+
+### Process 특징
+1. Causal process   
+Def. 과거 값에만 의존<br />
+2. Invertibility     
+Def. $X_t = Z_t + \theta Z_{t-1} \leftrightarrow Z_t = \sum^{\inf}_{j=0} (-\theta)^j X_{t-j}$, converges iff |$\theta$| < 1.
+즉, $Z_t = \sum^{\inf}_{j=0} \pi_j X_{t-j}$, for all t.<br />
+3. Itentifiable 
+ARMA(1,1)의 경우 WN로 해석될 수 있음. 따라서, $\phi + \theta \ne 0$ 조건 필요.
+<br /> <br />
+Summary. 
+1. AR(1): $|\phi| < 1$: causal and stationary
+2. MA(1): $|\theta| <1$: invertibility
+3. ARMA(1,1): above two and identifiablity. 
+
+### Properties of SACF
+$\nu = \sum \gamma(h)$: long run variance
+
+##Forecasting Stationary Time series
+predict future values based on linear combination of {1, X_1, ...,X_n}<br />
+
+$ P_n X_{n+h} = a_0+a_1 X_n +\cdots +a_n X_1 $<br />
+중요점: minimize mean squared prediction errors(MSPE).
+recursively predict.
+$\tilde{P_t} X_{t+h}$ : BLP(Best Linear Predictor) that minimized the MSPE. 
+
+
+## ARMA(p,q) model
+
+$\phi(B) X_t = \theta(B) Z_t $, where $\{X_t\}$: stationary.<br />
+Restriction on ARMA coefficients
+1. Stationarity: existence and uniqueness of solution
+2. Causality: only depends on past values 
+3. Invertiblity: useful in forcasting 
+4. Identifiability: modelling perspective 
+
+Stationary하려면 unit circle안에 해가 없으면 돼 (특히, 1이되면 안돼)<br />
+Causality하려면 위와 동일( 1안에 있으면 안돼 )<br />
+즉, 둘 다 만족하려면 $\phi(z)$의 roots are out of circle. <br />
+Invertible 하려면 $\theta(z)$의 roots 가 out of circle.<br />
+Identifiable 하려면 공통근이 없어야 해. 
+
+## PACF
+
+```{r}
+#library(forecast)
+sim1<-arima.sim(model = list(ar=0.8), n = 200)
+ts.plot(sim1)
+
+par(mfrow=c(1,2))
+acf(sim1, main="ACF",30)
+pacf(sim1, main="PACF",30)
+
+ar.yw(sim1, aic=FALSE,order.max=1,demean=FALSE) #MME 0.8343
+arima(sim1,order=c(1,0,0),include.mean=TRUE) #MLE 0.8164 더 잘맞춰
+
+```
+```{r}
+sim2<-arima.sim(model=list(ar=c(1.5,-0.75)),n=100)
+
+ts.plot(sim2)
+
+par(mfrow=c(1,2))
+acf(sim2, main="ACF",30)
+pacf(sim2, main="PACF",30)
+
+ar.yw(sim2, aic=FALSE,order.max=2,demean=FALSE) #MME : 1.3504, -0.6471
+arima(sim2,order=c(2,0,0),include.mean=TRUE) #MLE : 1.3727, -0.6708 더 잘맞춰
+
+```
+
+```{r}
+sim3<-arima.sim(model=list(ma=0.7),n=100)
+
+ts.plot(sim3)
+
+par(mfrow=c(1,2))
+acf(sim3, main="ACF",30)
+pacf(sim3, main="PACF",30)
+
+arima(sim3,order=c(0,0,1),include.mean=TRUE) #MLE
+```
+
+
+```{r}
+sim4<-arima.sim(model=list(ma=0.4,ar=-0.7453),100)
+ts.plot(sim4)
+#auto.arima(sim4)
+
+par(1,2)
+acf(sim4,main="ACF",30)
+pacf(sim4,main="PACF",30)
+
+```
+
+# CH5
+## Estimation using MME/MLE/LSE
+MLE의 경우 Best asymptotic이지만, Numerical solution구하려면 initial value가 좋아야함. <br />
+해결: MME/LSE
+
+교안 코드
+```{r}
+#library(forecast)
+lake<-read.table("https://raw.githubusercontent.com/hikhloee/TS_code/main/huron.txt",header=F)
+lake<-lake[,1]
+ts.plot(lake)
+acf(lake,50)
+pacf(lake,50)
+
+ar.yw(lake, aic=FALSE,order.max=2,demean=FALSE) #MME
+ar2.out = arima(lake,order=c(2,0,0),include.mean=TRUE) #MLE
+ar2.out 
+
+fit = forecast::auto.arima(lake,d=0) 
+fit#AIC로 모델 판단
+
+2*(1-pnorm(fit$coef/sqrt(diag(fit$var.coef)))) # p-value for each coefficient
+
+#library(itsmr)
+itsmr::test(residuals(fit))
+#iid doesn't violate.
+forecastval<-forecast::forecast(fit,30)
+plot(forecastval)
+```
+
+
+## MME: Yule-Walker for AR(p)
+경희 function
+
+```{r}
+#Yule walker(MME)
+
+my_sacvf<-function(data,lag){
+  n<-length(data)
+  sumdata = 0
+  xbar = mean(data)
+
+    for(i in 1:(n-lag)){
+    sumdata = 1/n*sum((data[i]-xbar)*(data[i+lag]-xbar))+sumdata
+    }
+   
+  return(sumdata)
+
+}
+
+my_func_acvf<-function(data, lag){
+  a<-rep(0,(lag))
+  for(i in 1:(lag+1)){
+    a[i] = my_sacvf(data,(i-1))
+  }
+  return(a)
+}
+
+YW<-function (x, p) 
+{
+    n = length(x)
+    x = x - mean(x)
+    gamma = my_func_acvf(x, p)
+    Gamma = toeplitz(gamma[1:p])
+    
+    phi = solve(Gamma)%*%gamma[2:(p + 1)]
+return(phi)}
+
+YW(lake,2) #ar.yw(lake,2)와 동일
+```
+
+## MLE for ARMA(p,q)
+```{r}
+myarma<-function(x,order=c(0,0,0)){
+  
+}
+###MLE부터 공부 다시하기 
+```
+
+## Our data
+```{r}
+set.seed(2022)
+y = arima.sim(n=500, model=list(ar=c(0.8),ma=c(-0.7)))
+y2<-arima.sim(n=500,model=list(ar=c(0.7,-0.5)))
+```
+
+Exercise
+```{r}
+arima(y,order=c(1,0,1),include.mean=TRUE) #MLE
+
+ar.yw(y, aic=FALSE,order.max=1,demean=FALSE) #MME
+ar.yw(y, aic=FALSE,order.max=2,demean=FALSE) #MME
+YW(y,1)
+YW(y,2) #Mycode for MME
+
+ar.yw(y2,aic=FALSE,order.max=2,demean=FALSE)
+YW(y2,2)
+
+```
+
